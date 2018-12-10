@@ -1,4 +1,5 @@
-﻿using System;
+﻿using GK3.Properties;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -18,6 +19,7 @@ namespace GK3
         {
             InitializeComponent();
             splitContainer2.SplitterDistance = splitContainer2.Size.Width / 2;
+            pictureBox1.Image = new Bitmap(Resources.lenac);
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -78,7 +80,7 @@ namespace GK3
         private void ErrorDiffusionDithering(object sender, EventArgs e)
         {
             Bitmap outBmp = new Bitmap(pictureBox1.Image);
-            if (!int.TryParse(textBox1.Text, out int tones) || tones < 2 || tones > 255) return;
+            if (!int.TryParse(textBox4.Text, out int tones) || tones < 2 || tones > 255) return;
             double stride = 255 / (tones - 1);
             Colors[,] col = new Colors[outBmp.Height, outBmp.Width];
             for (int i = 0; i < outBmp.Height; i++)
@@ -325,6 +327,16 @@ namespace GK3
                 }
             }
             pictureBox2.Image = outBmp;
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image = new Bitmap(Resources.lenac);
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Image = new Bitmap(Resources.lena);
         }
     }
 }
