@@ -75,10 +75,10 @@ namespace GK3
             return destImage;
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void ErrorDiffusionDithering(object sender, EventArgs e)
         {
             Bitmap outBmp = new Bitmap(pictureBox1.Image);
-            if(!int.TryParse(textBox1.Text,out int tones) || tones < 2 || tones >255)return;
+            if (!int.TryParse(textBox1.Text, out int tones) || tones < 2 || tones > 255) return;
             double stride = 255 / (tones - 1);
             Colors[,] col = new Colors[outBmp.Height, outBmp.Width];
             for (int i = 0; i < outBmp.Height; i++)
@@ -150,8 +150,181 @@ namespace GK3
                 blue += error.blue * weight;
             }
 
+            public void Add(Colors error)
+            {
+                red += error.red ;
+                green += error.green;
+                blue += error.blue;
+            }
+
+            public double distSq(Colors c)
+            {
+                return (c.red - red) * (c.red - red) + (c.green - green) * (c.green - green) + (c.blue - blue) * (c.blue - blue);
+            }
+
+            internal void DivideBy(double v)
+            {
+                red = red / v;
+                green = green / v;
+                blue = blue / v;
+            }
         }
 
-    }
+        private void PopularityAlgorithm(object sender, EventArgs e)
+        {
+            if (!int.TryParse(textBox1.Text, out int tones) || tones < 2 || tones > 255) return;
+            if (!int.TryParse(textBox2.Text, out int cubeDensity) 
+                || cubeDensity < 2 
+                || cubeDensity > 255 
+                || cubeDensity* cubeDensity* cubeDensity<tones) return;
+            
+            Bitmap outBmp = new Bitmap(pictureBox1.Image);
+            //number of cubes equals to cubeDensity cubed
+            int[,,] cubes = new int[cubeDensity, cubeDensity, cubeDensity];
+            double stride = 256.0 / cubeDensity;
+            Colors[,] colors = new Colors[outBmp.Height, outBmp.Width];
+            for (int i = 0; i < outBmp.Height; i++)
+            {
+                for (int j = 0; j < outBmp.Width; j++)
+                {
+                    Color color = outBmp.GetPixel(j, i);
+                    colors[i, j] = new Colors(color.R, color.G, color.B);
+                    cubes[(int)(color.R / stride), (int)(color.G / stride), (int)(color.B / stride)]++;
+                }
+            }
+            List<Colors> PopularColors = new List<Colors>();
+            for (int i = 0; i < tones; i++)
+            {
+                Colors col = new Colors();
+                int count = -1;
+                int r = -1;
+                int g = -1;
+                int b = -1;
+                for (int x = 0; x < cubeDensity; x++)
+                {
+                    for (int y = 0; y < cubeDensity; y++)
+                    {
+                        for (int z = 0; z < cubeDensity; z++)
+                        {
+                            if (cubes[x, y, z] > count)
+                            {
+                                count = cubes[x, y, z];
+                                r = x;
+                                g = y;
+                                b = z;
+                                //center of each cube represents a possible color
+                                col = new Colors(x * stride + stride / 2, y * stride + stride / 2, z * stride + stride / 2);
+                            }
+                        }
+                    }
+                }
+                PopularColors.Add(col);
+                cubes[r, g, b] = -1;
+            }
+            for (int i = 0; i < outBmp.Height; i++)
+            {
+                for (int j = 0; j < outBmp.Width; j++)
+                {
+                    double minDist = PopularColors.Min(x => x.distSq(colors[i, j]));
+                    Colors closestColor = PopularColors.First(x => x.distSq(colors[i, j]) == minDist);
+                    outBmp.SetPixel(j, i, Color.FromArgb((int)closestColor.red, (int)closestColor.green, (int)closestColor.blue));
+                }
+            }
+            pictureBox2.Image = outBmp;
+        }
 
+        private void Kmeans(object sender, EventArgs e)
+        {
+            if (!int.TryParse(textBox3.Text, out int K) || K < 2 || K > 255) return;
+            Random random = new Random();
+            Bitmap outBmp = new Bitmap(pictureBox1.Image);
+            int[] count = new int[K];
+            Colors[] means = new Colors[K];
+            Colors[] newMeans = new Colors[K];
+            Colors[,] col = new Colors[outBmp.Height, outBmp.Width];
+            for (int i = 0; i < outBmp.Height; i++)
+            {
+                for (int j = 0; j < outBmp.Width; j++)
+                {
+                    Color color = outBmp.GetPixel(j, i);
+                    col[i, j].red = color.R;
+                    col[i, j].green = color.G;
+                    col[i, j].blue = color.B;
+                }
+            }
+
+            //starting centers, K random colors from bitmap
+            for (int i = 0; i < K; i++)
+            {
+                int x, y, roll = 0;
+                do
+                {
+                    x = random.Next(0, outBmp.Width);
+                    y = random.Next(0, outBmp.Height);
+                    roll++;
+                }
+                while (means.Contains(col[y, x]) && roll < 10);
+                means[i] = col[y, x];
+            }
+
+
+            int iterations = 40;
+            for (int p = 0; p < iterations; p++)
+            {
+                for (int i = 0; i < K; i++)
+                {
+                    newMeans[i] = new Colors(0, 0, 0);
+                    count[i] = 0;
+                }
+
+                for (int i = 0; i < outBmp.Height; i++)
+                {
+                    for (int j = 0; j < outBmp.Width; j++)
+                    {
+                        double min = double.MaxValue;
+                        int indx = -1;
+                        for (int s = 0; s < K; s++)
+                        {
+                            double dist = col[i, j].distSq(means[s]);
+                            if (dist < min)
+                            {
+                                min = dist;
+                                indx = s;
+                            }
+                        }
+                        newMeans[indx].Add(col[i, j]);
+                        count[indx]++;
+                    }
+                }
+
+                for (int i = 0; i < K; i++)
+                {
+                    count[i] = Math.Max(count[i], 1);
+                    newMeans[i].DivideBy(count[i]);
+                    means[i] = newMeans[i];
+                }
+            }
+
+            //assign points to centers
+            for (int i = 0; i < outBmp.Height; i++)
+            {
+                for (int j = 0; j < outBmp.Width; j++)
+                {
+                    double min = double.MaxValue;
+                    int label = -1;
+                    for (int s = 0; s < K; s++)
+                    {
+                        double dist = col[i, j].distSq(means[s]);
+                        if (dist < min)
+                        {
+                            min = dist;
+                            label = s;
+                        }
+                    }
+                    outBmp.SetPixel(j, i, Color.FromArgb((int)means[label].red, (int)means[label].green, (int)means[label].blue));
+                }
+            }
+            pictureBox2.Image = outBmp;
+        }
+    }
 }
